@@ -12,17 +12,21 @@
        background:#0E1513;color:#E9F0EC;text-align:center;
        font:16px/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
        -webkit-font-smoothing:antialiased}
-  .box{max-width:21rem;display:flex;flex-direction:column;gap:16px;align-items:center}
+  .box{max-width:22rem;display:flex;flex-direction:column;gap:16px;align-items:center}
   .spin{width:30px;height:30px;border:2px solid #2A3833;border-top-color:#5FC0A7;
         border-radius:50%;animation:sp .9s linear infinite}
   @keyframes sp{to{transform:rotate(360deg)}}
   @media(prefers-reduced-motion:reduce){.spin{animation:none;border-top-color:#5FC0A7}}
   h1{font-size:19px;font-weight:600;margin:0;line-height:1.45;text-wrap:balance}
   p{margin:0;font-size:14px;color:#8FA09A;line-height:1.65}
-  button{margin-top:4px;padding:11px 22px;font:inherit;font-size:14px;font-weight:500;
-         color:#0E1513;background:#5FC0A7;border:0;border-radius:6px;cursor:pointer}
-  button:focus-visible{outline:2px solid #E9F0EC;outline-offset:3px}
+  .btn{margin-top:4px;padding:11px 22px;font:inherit;font-size:14px;font-weight:500;
+       color:#0E1513;background:#5FC0A7;border:0;border-radius:6px;cursor:pointer;
+       text-decoration:none;display:inline-block}
+  .btn.alt{background:transparent;color:#5FC0A7;border:1px solid #2A3833}
+  .btn:focus-visible{outline:2px solid #E9F0EC;outline-offset:3px}
   .hide{display:none}
+  .lanwrap{display:flex;flex-direction:column;gap:8px;align-items:center;
+           border-top:1px solid #1C2724;padding-top:16px;margin-top:4px;width:100%}
 </style>
 </head>
 <body>
@@ -30,30 +34,58 @@
     <div class="spin" id="spin"></div>
     <h1 id="t">자막 화면을 여는 중입니다</h1>
     <p id="m">잠시만 기다려 주세요.</p>
-    <button id="retry" class="hide" type="button">다시 시도</button>
+    <button id="retry" class="btn hide" type="button">다시 시도</button>
+    <div id="lan" class="lanwrap hide">
+      <a class="btn alt" href="http://10.0.0.178:8779/?lang=ko&lang2=">교회 와이파이로 연결</a>
+      <p>교회 안에서 교회 와이파이에 연결돼 있다면 이 버튼으로 바로 들어갈 수 있습니다.</p>
+    </div>
   </div>
 <script>
 (function(){
-  var Q = "lang=ko&lang2=";
+  var Q   = "lang=ko&lang2=";
+  var LAN = "http://10.0.0.178:8779";
   var t = document.getElementById("t"), m = document.getElementById("m");
   var spin = document.getElementById("spin"), retry = document.getElementById("retry");
+  var lan = document.getElementById("lan");
+
   function offline(){
     spin.className = "hide";
     t.textContent = "지금은 자막이 준비되지 않았습니다";
     m.textContent = "예배가 시작되면 이 화면을 다시 열어 주세요.";
-    retry.className = "";
+    retry.className = "btn";
+    lan.className = "lanwrap";
   }
+
+  /* 넘기기 전에 목적지가 살아 있는지 본다.
+     죽은 quick tunnel 은 DNS 에서 사라지므로 no-cors fetch 가 거부된다.
+     살아 있으면 opaque 응답으로 이행한다 — 상태코드는 못 읽지만 생사 판정엔 충분하다. */
+  function probe(base){
+    return new Promise(function(resolve){
+      var done = false;
+      var timer = setTimeout(function(){ if(!done){ done = true; resolve(false); } }, 5000);
+      fetch(base + "/healthz", {mode:"no-cors", cache:"no-store"})
+        .then(function(){ if(!done){ done = true; clearTimeout(timer); resolve(true); } })
+        .catch(function(){ if(!done){ done = true; clearTimeout(timer); resolve(false); } });
+    });
+  }
+
   function go(){
     fetch("./url.json?t=" + Date.now(), {cache:"no-store"})
       .then(function(r){ if(!r.ok) throw 0; return r.json(); })
       .then(function(d){
         if(!d || !d.url) throw 0;
-        location.replace(String(d.url).replace(/\/+$/, "") + "/?" + Q);
+        var base = String(d.url).replace(/\/+$/, "");
+        return probe(base).then(function(alive){
+          if (alive) location.replace(base + "/?" + Q);
+          else offline();
+        });
       })
       .catch(offline);
   }
+
   retry.addEventListener("click", function(){
-    retry.className = "hide"; spin.className = "spin";
+    retry.className = "btn hide"; lan.className = "lanwrap hide";
+    spin.className = "spin";
     t.textContent = "자막 화면을 여는 중입니다"; m.textContent = "잠시만 기다려 주세요.";
     go();
   });
