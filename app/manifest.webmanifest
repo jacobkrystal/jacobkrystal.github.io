@@ -1,0 +1,28 @@
+{
+  "id": "/app/",
+  "name": "설교 동시통역 자막 · Sermon Captions",
+  "short_name": "설교자막",
+  "description": "예배 설교를 한국어·English·Tagalog 자막으로 실시간으로 봅니다.",
+  "lang": "ko",
+  "dir": "ltr",
+  "start_url": "/app/?source=pwa",
+  "scope": "/app/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
+  "categories": ["education", "utilities"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "한국어 자막", "short_name": "한국어", "url": "/app/?lang=ko&lang2=&auto=1&source=shortcut",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" }] },
+    { "name": "English captions", "short_name": "English", "url": "/app/?lang=en&lang2=&auto=1&source=shortcut",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" }] },
+    { "name": "Tagalog + English", "short_name": "Tagalog", "url": "/app/?lang=tl&lang2=en&auto=1&source=shortcut",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" }] }
+  ]
+}
