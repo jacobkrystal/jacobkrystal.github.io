@@ -1,0 +1,1441 @@
+<!doctype html>
+<html lang="ko" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=5,viewport-fit=cover">
+<meta name="theme-color" content="#ffffff">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="robots" content="noindex,nofollow">
+<title>Live Interpretation Captions</title>
+<style>
+/* ============================================================
+   design tokens - benchmarked against sconchat.com (2026-09-07)
+   ============================================================ */
+:root{
+  --ink:#0B1220; --ink2:#1F2937; --ink3:#374151;
+  --mut:#6B7280; --mut2:#9AA3B2;
+  --line:#E8EBF2; --line2:#F0F2F8;
+  --bg:#FFFFFF; --soft:#F6F8FD; --soft2:#FBFCFE;
+  --ind:#4F46E5; --indd:#4338CA; --inds:#EEF0FE; --indb:#D9DCFB;
+  --navy:#1E2540; --navyd:#141A2E; --navyl:#2A3252;
+  --ok:#10B981; --warn:#F59E0B; --bad:#EF4444;
+  --sh1:0 1px 2px rgba(11,18,32,.06);
+  --sh2:0 4px 16px rgba(11,18,32,.08);
+  --sh3:0 18px 48px rgba(11,18,32,.16);
+  --r1:10px; --r2:14px; --r3:20px; --r4:28px;
+  --fs:1;   /* caption font scale, driven by the 10-step control */
+  --lh:1.55;
+  --font:"Pretendard Variable",Pretendard,-apple-system,BlinkMacSystemFont,
+         "Apple SD Gothic Neo","Segoe UI","Malgun Gothic","Noto Sans KR",
+         "Helvetica Neue",Roboto,sans-serif;
+}
+:root:not([data-theme="light"]){
+  /* night mode is opt-in via the settings switch, not by system preference,
+     because a sanctuary projector and a phone in a dark room want different
+     things. the token block below is applied by [data-theme="dark"] only. */
+}
+:root[data-theme="dark"]{
+  --ink:#F3F5FA; --ink2:#E2E6EF; --ink3:#C7CDDA;
+  --mut:#98A1B4; --mut2:#77809A;
+  --line:#26304A; --line2:#1E2740;
+  --bg:#10162A; --soft:#161E36; --soft2:#131A31;
+  --inds:#1E2650; --indb:#2C3670;
+  --sh1:0 1px 2px rgba(0,0,0,.4);
+  --sh2:0 4px 16px rgba(0,0,0,.45);
+  --sh3:0 18px 48px rgba(0,0,0,.6);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);
+  font-size:15px;line-height:1.5;
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+  overscroll-behavior-y:none;
+}
+button,input,select{font-family:inherit;font-size:inherit;color:inherit}
+button{border:0;background:none;cursor:pointer;padding:0}
+.hide{display:none!important}
+
+/* ============================================================
+   app shell
+   ============================================================ */
+#app{min-height:100dvh;display:flex;flex-direction:column}
+
+/* ---------- top bar ---------- */
+.bar{
+  position:sticky;top:0;z-index:40;flex:0 0 auto;
+  display:flex;align-items:center;gap:10px;
+  height:56px;padding:0 16px;padding-top:env(safe-area-inset-top);
+  background:color-mix(in srgb,var(--bg) 88%,transparent);
+  backdrop-filter:saturate(180%) blur(14px);
+  -webkit-backdrop-filter:saturate(180%) blur(14px);
+  border-bottom:1px solid var(--line);
+}
+.brand{display:flex;align-items:center;gap:8px;min-width:0}
+.glyph{width:26px;height:26px;flex:0 0 auto;border-radius:8px;
+  background:linear-gradient(135deg,#6366F1,#4338CA);
+  display:grid;place-items:center;box-shadow:0 2px 8px rgba(79,70,229,.35)}
+.glyph svg{width:15px;height:15px;display:block}
+.wm{font-weight:800;letter-spacing:-.02em;font-size:15.5px;color:var(--ink);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wm em{font-style:normal;font-weight:600;color:var(--mut)}
+.spacer{flex:1 1 auto}
+.iconbtn{
+  width:36px;height:36px;border-radius:10px;display:grid;place-items:center;
+  color:var(--ink3);transition:background .15s,color .15s;
+}
+.iconbtn:hover{background:var(--soft);color:var(--ink)}
+.iconbtn svg{width:19px;height:19px;display:block}
+.uilang{
+  height:32px;padding:0 10px;border-radius:999px;border:1px solid var(--line);
+  font-size:12.5px;font-weight:600;color:var(--ink3);background:var(--bg);
+  display:flex;align-items:center;gap:5px
+}
+
+/* ============================================================
+   SCREEN 1 - join
+   ============================================================ */
+#join{flex:1 1 auto;display:flex;flex-direction:column}
+.wrap{width:100%;max-width:720px;margin:0 auto;padding:0 20px}
+.hero{padding:34px 0 22px}
+.chip{
+  display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 12px;
+  border-radius:999px;background:var(--bg);border:1px solid var(--line);
+  box-shadow:var(--sh1);font-size:12px;font-weight:700;color:var(--ind);
+  letter-spacing:.01em;margin-bottom:16px
+}
+.chip i{width:6px;height:6px;border-radius:50%;background:var(--ind);
+  animation:pulse 2s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.7)}}
+h1.t{
+  margin:0;font-size:clamp(28px,7.4vw,44px);line-height:1.24;
+  font-weight:800;letter-spacing:-.033em;color:var(--ink)
+}
+h1.t .g{
+  background:linear-gradient(100deg,#4F46E5,#6D63F0 60%,#4338CA);
+  -webkit-background-clip:text;background-clip:text;color:transparent
+}
+p.sub{margin:14px 0 0;font-size:15px;line-height:1.65;color:var(--mut);max-width:34em}
+
+.sect{margin-top:26px}
+.lbl{
+  display:flex;align-items:center;justify-content:space-between;
+  font-size:12px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;
+  color:var(--mut2);margin:0 0 11px
+}
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:9px}
+@media(min-width:560px){.grid{grid-template-columns:repeat(3,1fr)}}
+.lcard{
+  position:relative;text-align:left;padding:14px 14px 13px;border-radius:var(--r2);
+  border:1.5px solid var(--line);background:var(--bg);
+  transition:border-color .16s,background .16s,transform .1s,box-shadow .16s;
+}
+.lcard:hover{border-color:var(--indb);box-shadow:var(--sh1)}
+.lcard:active{transform:scale(.985)}
+.lcard[aria-pressed="true"]{border-color:var(--ind);background:var(--inds);box-shadow:var(--sh1)}
+.lcard .code{
+  display:inline-block;font-size:10.5px;font-weight:800;letter-spacing:.09em;
+  color:var(--mut2);text-transform:uppercase;margin-bottom:6px
+}
+.lcard[aria-pressed="true"] .code{color:var(--ind)}
+.lcard .nat{display:block;font-size:15.5px;font-weight:700;letter-spacing:-.01em;color:var(--ink)}
+.lcard .eng{display:block;font-size:11.5px;color:var(--mut);margin-top:2px}
+.lcard .tick{
+  position:absolute;top:11px;right:11px;width:18px;height:18px;border-radius:50%;
+  background:var(--ind);display:none;place-items:center
+}
+.lcard[aria-pressed="true"] .tick{display:grid}
+.lcard .tick svg{width:11px;height:11px;color:#fff}
+
+.field{
+  width:100%;height:48px;padding:0 14px;border-radius:var(--r2);
+  border:1.5px solid var(--line);background:var(--bg);color:var(--ink);
+  font-size:15px;outline:none;transition:border-color .16s,box-shadow .16s
+}
+.field::placeholder{color:var(--mut2)}
+.field:focus{border-color:var(--ind);box-shadow:0 0 0 4px var(--inds)}
+
+.notice{
+  margin-top:22px;display:flex;gap:11px;padding:14px 15px;border-radius:var(--r2);
+  background:var(--soft);border:1px solid var(--line2)
+}
+.notice svg{width:17px;height:17px;flex:0 0 auto;margin-top:1px;color:var(--warn)}
+.notice b{display:block;font-size:12.5px;font-weight:800;color:var(--ink2);margin-bottom:3px}
+.notice p{margin:0;font-size:12.5px;line-height:1.62;color:var(--mut)}
+
+.cta{
+  position:sticky;bottom:0;margin-top:26px;padding:14px 0 calc(18px + env(safe-area-inset-bottom));
+  background:linear-gradient(to top,var(--bg) 62%,transparent)
+}
+.btn{
+  width:100%;height:54px;border-radius:var(--r2);font-size:16px;font-weight:700;
+  letter-spacing:-.01em;display:flex;align-items:center;justify-content:center;gap:8px;
+  transition:transform .1s,box-shadow .16s,background .16s
+}
+.btn.pri{background:var(--ind);color:#fff;box-shadow:0 6px 20px rgba(79,70,229,.32)}
+.btn.pri:hover{background:var(--indd)}
+.btn.pri:active{transform:scale(.988)}
+.btn.pri:disabled{background:var(--line);color:var(--mut2);box-shadow:none;cursor:not-allowed}
+.btn svg{width:18px;height:18px}
+.foot{padding:0 0 30px;font-size:11.5px;color:var(--mut2);text-align:center;line-height:1.7}
+.notice+.cta{margin-top:18px}
+.foot code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11px}
+
+/* ============================================================
+   SCREEN 2 - live
+   ============================================================ */
+#live{flex:1 1 auto;display:flex;flex-direction:column;min-height:100dvh}
+.livebar{
+  position:sticky;top:0;z-index:40;flex:0 0 auto;
+  padding-top:env(safe-area-inset-top);
+  background:color-mix(in srgb,var(--bg) 90%,transparent);
+  backdrop-filter:saturate(180%) blur(14px);
+  -webkit-backdrop-filter:saturate(180%) blur(14px);
+  border-bottom:1px solid var(--line)
+}
+.lbrow{display:flex;align-items:center;gap:8px;height:52px;padding:0 10px 0 6px}
+.room{min-width:0;flex:1 1 auto}
+.room .rt{font-size:14.5px;font-weight:750;letter-spacing:-.015em;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink)}
+.room .rs{font-size:11px;color:var(--mut2);margin-top:1px}
+.langpill{
+  height:30px;padding:0 11px;border-radius:999px;background:var(--inds);
+  color:var(--ind);font-size:12.5px;font-weight:750;display:flex;align-items:center;gap:5px;
+  border:1px solid var(--indb)
+}
+.langpill svg{width:12px;height:12px}
+
+/* health strip - the defect surface. this is deliberate: the bridge can die
+   silently, so the guest must be able to see staleness without asking. */
+.health{
+  display:flex;align-items:center;gap:8px;padding:8px 16px;
+  font-size:12px;font-weight:600;color:var(--mut);
+  background:var(--soft2);border-top:1px solid var(--line2);
+  transition:background .3s,color .3s
+}
+.health .dot{width:7px;height:7px;border-radius:50%;background:var(--ok);flex:0 0 auto;
+  box-shadow:0 0 0 3px color-mix(in srgb,var(--ok) 22%,transparent);
+  transition:background .3s,box-shadow .3s}
+.health.warn{background:#FFF8EC;color:#92610C}
+:root[data-theme="dark"] .health.warn{background:#3A2A08;color:#F5C86B}
+.health.warn .dot{background:var(--warn);box-shadow:0 0 0 3px color-mix(in srgb,var(--warn) 25%,transparent)}
+.health.bad{background:#FEF1F1;color:#A32020}
+:root[data-theme="dark"] .health.bad{background:#3E1414;color:#F79393}
+.health.bad .dot{background:var(--bad);box-shadow:0 0 0 3px color-mix(in srgb,var(--bad) 25%,transparent);
+  animation:pulse 1.4s ease-in-out infinite}
+.health .rt{margin-left:auto;font-variant-numeric:tabular-nums;font-size:11px;color:inherit;opacity:.72}
+
+/* caption stream */
+#stream{
+  flex:1 1 auto;overflow-y:auto;-webkit-overflow-scrolling:touch;
+  padding:8px 16px calc(96px + env(safe-area-inset-bottom));
+  scroll-behavior:smooth
+}
+.daydiv{display:flex;align-items:center;gap:12px;margin:16px 2px 12px}
+.daydiv:before,.daydiv:after{content:"";flex:1;height:1px;background:var(--line)}
+.daydiv span{font-size:10.5px;font-weight:700;letter-spacing:.07em;color:var(--mut2);
+  text-transform:uppercase;font-variant-numeric:tabular-nums}
+
+/* a turn is NOT a bubble. speaker header + flat text on the page, the way
+   sconchat does it. bubbles were the single biggest thing that made v1 read
+   as a toy. */
+.turn{padding:13px 0;border-bottom:1px solid var(--line2);animation:rise .28s cubic-bezier(.2,.7,.3,1)}
+.turn:last-child{border-bottom:0}
+@keyframes rise{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+.thead{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.av{
+  width:24px;height:24px;border-radius:50%;flex:0 0 auto;display:grid;place-items:center;
+  font-size:10.5px;font-weight:800;color:#fff;letter-spacing:-.02em;
+  background:linear-gradient(135deg,#6366F1,#4338CA)
+}
+.av.s1{background:linear-gradient(135deg,#0EA5E9,#0369A1)}
+.av.s2{background:linear-gradient(135deg,#10B981,#047857)}
+.who{font-size:12.5px;font-weight:750;color:var(--ink2);letter-spacing:-.01em}
+.tm{font-size:10.5px;color:var(--mut2);font-variant-numeric:tabular-nums}
+.tbody{
+  font-size:calc(16px * var(--fs));line-height:var(--lh);color:var(--ink);
+  letter-spacing:-.006em;word-break:keep-all;overflow-wrap:anywhere
+}
+/* secondary target language. the owner's original ask (2026-08-31) was
+   Tagalog + English + Korean at once - sconchat is one-language-per-viewer product and
+   structurally cannot do this, so this block is ours, not benchmarked. */
+.tsec{
+  margin-top:9px;padding-top:9px;border-top:1px dashed var(--line);
+  font-size:calc(14px * var(--fs));line-height:var(--lh);color:var(--ink3);
+  word-break:keep-all;overflow-wrap:anywhere
+}
+.tsec .lc{
+  display:inline-block;font-size:9.5px;font-weight:800;letter-spacing:.07em;
+  color:var(--mut2);margin-right:7px;vertical-align:.08em
+}
+.torig{
+  margin-top:8px;padding-left:11px;border-left:2px solid var(--line);
+  font-size:calc(13px * var(--fs));line-height:calc(var(--lh) - .08);color:var(--mut);
+  word-break:keep-all;overflow-wrap:anywhere
+}
+/* operator pause / session end are first-class states: a silent screen must
+   never be ambiguous (boundary 2-5, no silent failure). */
+.endcard{
+  margin:34px auto;max-width:22em;text-align:center;padding:26px 20px;
+  border-radius:var(--r3);background:var(--soft);border:1px solid var(--line2)
+}
+.endcard .ei{width:40px;height:40px;margin:0 auto 13px;border-radius:50%;
+  background:var(--inds);display:grid;place-items:center;color:var(--ind)}
+.endcard .ei svg{width:20px;height:20px}
+.endcard b{display:block;font-size:15.5px;font-weight:750;margin-bottom:5px}
+.endcard p{margin:0;font-size:12.5px;color:var(--mut);line-height:1.6}
+.pend{margin-left:auto;font-size:9.5px;font-weight:800;letter-spacing:.03em;
+  color:var(--warn);background:color-mix(in srgb,var(--warn) 13%,transparent);
+  border-radius:999px;padding:2px 7px;white-space:nowrap}
+.turn.partial .tbody{color:var(--mut)}
+.turn.partial .tbody:after{
+  content:"";display:inline-block;width:2px;height:1em;margin-left:3px;
+  background:var(--ind);vertical-align:-.14em;animation:blink 1s steps(1) infinite
+}
+@keyframes blink{50%{opacity:0}}
+
+.empty{padding:64px 8px;text-align:center;color:var(--mut2)}
+.empty .ring{width:46px;height:46px;margin:0 auto 16px;border-radius:50%;
+  border:2.5px solid var(--line);border-top-color:var(--ind);animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.empty p{margin:0;font-size:13.5px}
+.wmark{
+  text-align:right;padding:18px 2px 4px;font-size:9.5px;font-weight:800;
+  letter-spacing:.09em;color:var(--mut2);opacity:.5;user-select:none
+}
+
+/* jump-to-latest */
+.jump{
+  position:fixed;left:50%;transform:translateX(-50%);
+  bottom:calc(84px + env(safe-area-inset-bottom));z-index:30;
+  height:34px;padding:0 15px;border-radius:999px;background:var(--ind);color:#fff;
+  font-size:12.5px;font-weight:700;display:flex;align-items:center;gap:6px;
+  box-shadow:0 6px 20px rgba(79,70,229,.4)
+}
+.jump svg{width:13px;height:13px}
+
+/* bottom control dock */
+.dock{
+  position:fixed;left:0;right:0;bottom:0;z-index:35;
+  padding:9px 12px calc(9px + env(safe-area-inset-bottom));
+  background:color-mix(in srgb,var(--bg) 92%,transparent);
+  backdrop-filter:saturate(180%) blur(16px);
+  -webkit-backdrop-filter:saturate(180%) blur(16px);
+  border-top:1px solid var(--line);
+  display:flex;align-items:center;gap:8px
+}
+.stepper{display:flex;align-items:center;gap:2px;background:var(--soft);
+  border:1px solid var(--line);border-radius:999px;padding:3px;height:38px}
+.stepper button{width:32px;height:30px;border-radius:999px;display:grid;place-items:center;
+  color:var(--ink3);font-weight:800;font-size:15px}
+.stepper button:active{background:var(--bg)}
+.stepper .val{min-width:32px;height:30px;display:flex;align-items:center;justify-content:center;
+  font-size:11.5px;font-weight:800;color:var(--mut);font-variant-numeric:tabular-nums;
+  letter-spacing:-.01em}
+.tog{
+  height:38px;padding:0 13px;border-radius:999px;border:1px solid var(--line);
+  background:var(--soft);color:var(--mut);font-size:12.5px;font-weight:700;
+  display:flex;align-items:center;gap:6px;transition:.15s
+}
+.tog svg{width:14px;height:14px}
+.tog[aria-pressed="true"]{background:var(--inds);border-color:var(--indb);color:var(--ind)}
+.dock .grow{flex:1 1 auto}
+
+/* ============================================================
+   settings sheet
+   ============================================================ */
+.scrim{position:fixed;inset:0;z-index:60;background:rgba(11,18,32,.42);
+  backdrop-filter:blur(2px);animation:fade .2s}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+.sheet{
+  position:fixed;left:0;right:0;bottom:0;z-index:61;background:var(--bg);
+  border-radius:var(--r4) var(--r4) 0 0;box-shadow:var(--sh3);
+  padding:8px 20px calc(22px + env(safe-area-inset-bottom));
+  max-height:86dvh;overflow-y:auto;animation:up .26s cubic-bezier(.2,.8,.3,1)
+}
+@keyframes up{from{transform:translateY(100%)}to{transform:none}}
+.handle{width:38px;height:4px;border-radius:999px;background:var(--line);margin:6px auto 14px}
+.sheet h2{margin:0 0 16px;font-size:17px;font-weight:800;letter-spacing:-.02em}
+.row{display:flex;align-items:center;justify-content:space-between;gap:14px;
+  padding:13px 0;border-bottom:1px solid var(--line2)}
+.row:last-of-type{border-bottom:0}
+.row .rl{font-size:14px;font-weight:650;color:var(--ink2)}
+.row .rd{font-size:11.5px;color:var(--mut2);margin-top:2px}
+.sw{width:46px;height:28px;border-radius:999px;background:var(--line);position:relative;
+  flex:0 0 auto;transition:background .18s}
+.sw:after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;
+  background:#fff;box-shadow:var(--sh1);transition:transform .18s}
+.sw[aria-pressed="true"]{background:var(--ind)}
+.sw[aria-pressed="true"]:after{transform:translateX(18px)}
+.seg{display:flex;gap:4px;background:var(--soft);border:1px solid var(--line);
+  border-radius:999px;padding:3px}
+.seg button{height:28px;padding:0 12px;border-radius:999px;font-size:12.5px;font-weight:700;color:var(--mut)}
+.seg button[aria-pressed="true"]{background:var(--bg);color:var(--ind);box-shadow:var(--sh1)}
+.seg.wrap2{border-radius:13px;flex-wrap:wrap;justify-content:flex-end;max-width:66%;padding:4px}
+.seg.wrap2 button{border-radius:9px;padding:0 10px}
+.rng{display:flex;align-items:center;gap:11px}
+.rng .rv{min-width:34px;text-align:right;font-size:12px;font-weight:800;color:var(--ind);
+  font-variant-numeric:tabular-nums}
+.slider{width:132px;accent-color:var(--ind)}
+.sheetcta{margin-top:18px}
+
+/* ============================================================
+   SCREEN 3 - projector
+   ============================================================ */
+#big{
+  position:fixed;inset:0;z-index:80;background:var(--navyd);color:#fff;
+  display:flex;flex-direction:column;padding:clamp(20px,4vw,54px)
+}
+#big .bhead{display:flex;align-items:center;gap:10px;flex:0 0 auto}
+#big .bpill{height:30px;padding:0 13px;border-radius:999px;
+  background:rgba(255,255,255,.11);border:1px solid rgba(255,255,255,.16);
+  font-size:13px;font-weight:700;display:flex;align-items:center;color:#E6E9F5}
+#big .bdot{width:8px;height:8px;border-radius:50%;background:var(--ok);margin-right:8px;
+  box-shadow:0 0 0 4px rgba(16,185,129,.2)}
+#big .bdot.stale{background:var(--warn);box-shadow:0 0 0 4px rgba(245,158,11,.2)}
+#big .bx{margin-left:auto;color:rgba(255,255,255,.5)}
+#big .bx svg{width:22px;height:22px}
+#bigbody{
+  flex:1 1 auto;display:flex;flex-direction:column;justify-content:flex-end;
+  gap:clamp(14px,2vw,26px);overflow:hidden;padding:clamp(18px,3vw,40px) 0;
+  /* older lines scroll off the top; fade them instead of slicing a glyph in half */
+  -webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 56px);
+  mask-image:linear-gradient(to bottom,transparent 0,#000 56px)
+}
+#bigbody .bl{
+  font-size:calc(clamp(22px,3.6vw,46px) * var(--fs));line-height:1.34;font-weight:700;
+  letter-spacing:-.022em;color:#fff;word-break:keep-all;overflow-wrap:anywhere;
+  animation:rise .3s cubic-bezier(.2,.7,.3,1)
+}
+#bigbody .bl.old{color:rgba(255,255,255,.3);font-weight:600;
+  font-size:calc(clamp(18px,2.6vw,32px) * var(--fs))}
+#bigbody .bo{
+  font-size:calc(clamp(14px,1.8vw,22px) * var(--fs));line-height:1.42;
+  color:rgba(255,255,255,.4);font-weight:500;margin-top:8px
+}
+#big .bfoot{flex:0 0 auto;display:flex;align-items:center;font-size:12px;
+  color:rgba(255,255,255,.32);letter-spacing:.05em;font-weight:700}
+#big .bwm{margin-left:auto;opacity:.6}
+
+@media(min-width:760px){
+  .turn.two .tpair{display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start}
+  .turn.two .tsec{margin-top:0;padding-top:0;border-top:0;border-left:1px solid var(--line);
+    padding-left:20px;font-size:calc(15px * var(--fs));color:var(--ink2)}
+}
+@media(min-width:900px){
+  #stream{padding-left:0;padding-right:0}
+  #streamwrap{max-width:780px;margin:0 auto;width:100%;padding:0 24px}
+  .lbrow,.health{max-width:828px;margin:0 auto;width:100%}
+  .dock{justify-content:center}
+  .dock .grow{flex:0 0 22px}
+}
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-title" content="설교자막">
+<script src="app.js"></script>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ============ SCREEN 1 : JOIN ============ -->
+  <section id="join">
+    <header class="bar">
+      <div class="brand">
+        <span class="glyph" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.3"
+               stroke-linecap="round">
+            <path d="M3 10.5v3M7.5 6.5v11M12 3.5v17M16.5 8v8M21 10.5v3"/>
+          </svg>
+        </span>
+        <span class="wm" data-t="app.name">Live Captions</span>
+      </div>
+      <span class="spacer"></span>
+      <button class="uilang" id="uilangBtn" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             style="width:13px;height:13px" aria-hidden="true">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18a15 15 0 0 1 0-18"/>
+        </svg>
+        <span id="uilangTxt">KO</span>
+      </button>
+    </header>
+
+    <div class="wrap">
+      <div class="hero">
+        <span class="chip"><i></i><span data-t="join.badge">LIVE</span></span>
+        <h1 class="t"><span data-t="join.t1">Your language</span><br><span class="g" data-t="join.t2">in real time</span></h1>
+        <p class="sub" data-t="join.sub"></p>
+      </div>
+
+      <div class="sect">
+        <div class="lbl"><span data-t="join.pick">Language</span></div>
+        <div class="grid" id="langGrid"></div>
+      </div>
+
+      <div class="sect">
+        <div class="lbl"><span data-t="join.also">Also show</span></div>
+        <div class="grid" id="lang2Grid"></div>
+      </div>
+
+      <div class="notice">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" aria-hidden="true">
+          <path d="M12 9v4M12 17h.01"/>
+          <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>
+        </svg>
+        <div>
+          <b data-t="notice.t">Machine interpretation</b>
+          <p data-t="notice.b"></p>
+        </div>
+      </div>
+
+      <div class="cta">
+        <button class="btn pri" id="startBtn" type="button" disabled>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M5 12h14M13 6l6 6-6 6"/>
+          </svg>
+          <span data-t="join.start">Start</span>
+        </button>
+      </div>
+      <div class="foot"><span data-t="join.foot"></span><br><code id="endpoint"></code></div>
+    </div>
+  </section>
+
+  <!-- ============ SCREEN 2 : LIVE ============ -->
+  <section id="live" class="hide">
+    <header class="livebar">
+      <div class="lbrow">
+        <button class="iconbtn" id="backBtn" type="button" aria-label="back">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+               stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+        <div class="room">
+          <div class="rt" id="roomTitle">Live</div>
+          <div class="rs" id="roomSub"></div>
+        </div>
+        <button class="langpill" id="langPill" type="button">
+          <span id="langPillTxt">KO</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"
+               stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <button class="iconbtn" id="gearBtn" type="button" aria-label="settings">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2V21a2 2 0 1 1-4 0v-.1A1.7 1.7 0 0 0 7 19.4a1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0-1.2-2.9H1a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 2.6 7a1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H7a1.7 1.7 0 0 0 1-1.5V1a2 2 0 1 1 4 0v.1A1.7 1.7 0 0 0 15 2.6a1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V7a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>
+          </svg>
+        </button>
+      </div>
+      <div class="health" id="health">
+        <span class="dot" id="hDot"></span>
+        <span id="hTxt"></span>
+        <span class="rt" id="hClock"></span>
+      </div>
+    </header>
+
+    <div id="stream"><div id="streamwrap"></div><div class="wmark" id="wmark"></div></div>
+    <button class="jump hide" id="jumpBtn" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"
+           stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+      <span data-t="live.new">New</span>
+    </button>
+
+    <nav class="dock">
+      <div class="stepper">
+        <button id="fsDown" type="button" aria-label="smaller">A-</button>
+        <span class="val" id="fsVal">5</span>
+        <button id="fsUp" type="button" aria-label="larger">A+</button>
+      </div>
+      <button class="tog" id="dualTog" type="button" aria-pressed="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1"
+             stroke-linecap="round">
+          <path d="M4 5h16M4 9.5h10"/>
+          <path d="M4 16h16M4 20.5h10" opacity=".45"/>
+        </svg>
+        <span data-t="set.dual">Original</span>
+      </button>
+      <span class="grow"></span>
+      <button class="tog" id="bigBtn" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/>
+        </svg>
+        <span data-t="set.bigshort">Screen</span>
+      </button>
+    </nav>
+  </section>
+
+  <!-- ============ SCREEN 3 : PROJECTOR ============ -->
+  <section id="big" class="hide">
+    <div class="bhead">
+      <span class="bpill"><i class="bdot" id="bDot"></i><span id="bLang">KO</span></span>
+      <button class="bx" id="bigClose" type="button" aria-label="close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div id="bigbody"></div>
+    <div class="bfoot"><span id="bHint"></span><span class="bwm" id="bWm"></span></div>
+  </section>
+
+</div>
+
+<script>
+(function(){
+"use strict";
+
+/* ==========================================================================
+   i18n. every non-ASCII character in this file lives inside these string
+   literals; the build step escapes them to \uNNNN so the page renders the
+   same whether the server declares utf-8, euc-kr, or nothing at all.
+   ========================================================================== */
+var LANGS = [
+  {c:"ko", nat:"\ud55c\uad6d\uc5b4",       eng:"Korean"},
+  {c:"en", nat:"English",      eng:"English"},
+  {c:"tl", nat:"Filipino",     eng:"Tagalog"},
+  {c:"ceb",nat:"Cebuano",      eng:"Bisaya"},
+  {c:"zh", nat:"\u4e2d\u6587",         eng:"Chinese"},
+  {c:"ja", nat:"\u65e5\u672c\u8a9e",       eng:"Japanese"}
+];
+
+var I18N = {
+ko:{
+ "app.name":"\uc2e4\uc2dc\uac04 \ud1b5\uc5ed \uc790\ub9c9",
+ "join.badge":"\uc2e4\uc2dc\uac04",
+ "join.t1":"\uc624\ub298\uc758 \ub9d0\uc500\uc744",
+ "join.t2":"\ub2f9\uc2e0\uc758 \uc5b8\uc5b4\ub85c",
+ "join.sub":"\uc5b8\uc5b4\ub97c \uace0\ub974\uace0 \uc2dc\uc791\uc744 \ub204\ub974\uba74 \ub429\ub2c8\ub2e4. \uc124\uce58\ud560 \uac83\ub3c4, \ub85c\uadf8\uc778\ud560 \uac83\ub3c4 \uc5c6\uc2b5\ub2c8\ub2e4.",
+ "join.pick":"\uc5b8\uc5b4 \uc120\ud0dd",
+ "join.also":"\ud568\uaed8 \ubcfc \uc5b8\uc5b4 (\uc120\ud0dd)",
+ "join.none":"\uc5c6\uc74c",
+ "join.noneD":"\ud55c \uc5b8\uc5b4\ub9cc",
+ "join.start":"\uc790\ub9c9 \uc2dc\uc791\ud558\uae30",
+ "join.foot":"\uc5f0\uacb0 \ub300\uc0c1",
+ "notice.t":"\uae30\uacc4 \ud1b5\uc5ed \uc548\ub0b4",
+ "notice.b":"\uc774 \uc790\ub9c9\uc740 AI\uac00 \uc790\ub3d9\uc73c\ub85c \ub9cc\ub4ed\ub2c8\ub2e4. \uc0ac\ub78c \ud1b5\uc5ed\uc774 \uc544\ub2c8\ubbc0\ub85c \uc0ac\ub78c \uc774\ub984, \uc131\uacbd \uad6c\uc808 \ubc88\ud638, \uc22b\uc790\ub294 \ud2c0\ub9b4 \uc218 \uc788\uc2b5\ub2c8\ub2e4. \uc911\uc694\ud55c \ub0b4\uc6a9\uc740 \uc6d0\ubb38\uc73c\ub85c \ub2e4\uc2dc \ud655\uc778\ud574 \uc8fc\uc138\uc694.",
+ "live.room":"\uc2e4\uc2dc\uac04 \ud1b5\uc5ed",
+ "live.new":"\uc0c8 \uc790\ub9c9",
+ "set.title":"\ud654\uba74 \uc124\uc815",
+ "set.dual":"\uc6d0\ubb38",
+ "set.dualL":"\uc6d0\ubb38 \ud568\uaed8 \ubcf4\uae30",
+ "set.dualD":"\ud1b5\uc5ed\ubb38 \uc544\ub798\uc5d0 \ud55c\uad6d\uc5b4 \uc6d0\ubb38\uc744 \uac19\uc774 \ud45c\uc2dc\ud569\ub2c8\ub2e4",
+ "set.size":"\uae00\uc790 \ud06c\uae30",
+ "set.lh":"\uc904 \uac04\uaca9",
+ "set.auto":"\uc790\ub3d9 \uc2a4\ud06c\ub864",
+ "set.autoD":"\uc0c8 \uc790\ub9c9\uc774 \uc624\uba74 \uc544\ub798\ub85c \ub530\ub77c\uac11\ub2c8\ub2e4",
+ "set.dark":"\uc57c\uac04 \ubaa8\ub4dc",
+ "set.darkD":"\uc5b4\ub450\uc6b4 \uc608\ubc30\ub2f9\uc5d0\uc11c \ub208\uc774 \ub35c \ubd80\uc2ed\ub2c8\ub2e4",
+ "set.wake":"\ud654\uba74 \uaebc\uc9d0 \ubc29\uc9c0",
+ "set.wakeD":"\uc608\ubc30 \uc911 \ud654\uba74\uc774 \uc790\ub3d9\uc73c\ub85c \uaebc\uc9c0\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4",
+ "set.lang2":"\ud568\uaed8 \ubcfc \uc5b8\uc5b4",
+ "set.lang2D":"\ud1b5\uc5ed\ubb38 \uc544\ub798\uc5d0 \ub450 \ubc88\uc9f8 \uc5b8\uc5b4\ub97c \uac19\uc774 \ud45c\uc2dc\ud569\ub2c8\ub2e4",
+ "set.lines":"\ud070 \ud654\uba74 \uc904 \uc218",
+ "st.paused":"\uc124\uad50\uc790\uac00 \uc7a0\uc2dc \uba48\ucdc4\uc2b5\ub2c8\ub2e4",
+ "st.ended":"\uc608\ubc30\uac00 \ub05d\ub0ac\uc2b5\ub2c8\ub2e4",
+ "st.endedD":"\ud568\uaed8\ud574 \uc8fc\uc154\uc11c \uac10\uc0ac\ud569\ub2c8\ub2e4.",
+ "st.bad":"\uc8fc\uc18c\uac00 \uc798\ubabb\ub418\uc5c8\uac70\ub098 \ub9cc\ub8cc\ub418\uc5c8\uc2b5\ub2c8\ub2e4",
+ "set.lang":"\uc790\ub9c9 \uc5b8\uc5b4",
+ "set.big":"\ud070 \ud654\uba74\uc73c\ub85c \ubcf4\uae30",
+ "set.bigshort":"\ud070 \ud654\uba74",
+ "set.done":"\ub2eb\uae30",
+ "big.hint":"\ud654\uba74\uc744 \ub204\ub974\uba74 \ub3cc\uc544\uac11\ub2c8\ub2e4",
+ "h.connecting":"\uc5f0\uacb0\ud558\ub294 \uc911",
+ "h.waiting":"\uc790\ub9c9\uc744 \uae30\ub2e4\ub9ac\ub294 \uc911\uc785\ub2c8\ub2e4",
+ "h.pre":"\ub9c8\uc9c0\ub9c9 \uc790\ub9c9 ",
+ "h.post":"\ucd08 \uc804",
+ "h.stale":" \u00b7 \ub04a\uacbc\uc744 \uc218 \uc788\uc2b5\ub2c8\ub2e4",
+ "h.dead":"\uc5f0\uacb0\uc774 \ub04a\uacbc\uc2b5\ub2c8\ub2e4 \u00b7 \ub2e4\uc2dc \uc5f0\uacb0\ud558\ub294 \uc911",
+ "h.demo":"\uc608\uc2dc \uc790\ub9c9 (\uc11c\ubc84 \ubbf8\uc5f0\uacb0)",
+ "e.waiting":"\ub9d0\uc500\uc774 \uc2dc\uc791\ub418\uba74 \uc5ec\uae30\uc5d0 \uc790\ub9c9\uc774 \ub098\uc635\ub2c8\ub2e4",
+ "spk.pastor":"\ubaa9\uc0ac\ub2d8",
+ "badge.pending":"\uc6d0\ubb38 \u00b7 \ubc88\uc5ed \ub300\uae30"
+},
+en:{
+ "app.name":"Live Interpretation",
+ "join.badge":"LIVE",
+ "join.t1":"Today's message,",
+ "join.t2":"in your language",
+ "join.sub":"Pick a language and press start. Nothing to install, no sign-in.",
+ "join.pick":"Choose language",
+ "join.also":"Also show (optional)",
+ "join.none":"None",
+ "join.noneD":"one language",
+ "join.start":"Start captions",
+ "join.foot":"Connecting to",
+ "notice.t":"Machine interpretation",
+ "notice.b":"These captions are produced automatically by AI, not by a human interpreter. Names, scripture references and numbers may be wrong. Please check anything important against the original.",
+ "live.room":"Live interpretation",
+ "live.new":"New",
+ "set.title":"Display settings",
+ "set.dual":"Original",
+ "set.dualL":"Show original text",
+ "set.dualD":"Shows the Korean original under each translation",
+ "set.size":"Text size",
+ "set.lh":"Line spacing",
+ "set.auto":"Auto scroll",
+ "set.autoD":"Follows new captions down the page",
+ "set.dark":"Night mode",
+ "set.darkD":"Easier on the eyes in a dark sanctuary",
+ "set.wake":"Keep screen on",
+ "set.wakeD":"Stops the screen sleeping during service",
+ "set.lang2":"Second language",
+ "set.lang2D":"Shows a second language under each caption",
+ "set.lines":"Lines on big screen",
+ "st.paused":"The speaker paused",
+ "st.ended":"The service has ended",
+ "st.endedD":"Thank you for joining.",
+ "st.bad":"This link is wrong or has expired",
+ "set.lang":"Caption language",
+ "set.big":"Open big screen",
+ "set.bigshort":"Screen",
+ "set.done":"Done",
+ "big.hint":"Tap anywhere to go back",
+ "h.connecting":"Connecting",
+ "h.waiting":"Waiting for captions",
+ "h.pre":"Last caption ",
+ "h.post":"s ago",
+ "h.stale":" - may have stopped",
+ "h.dead":"Disconnected - reconnecting",
+ "h.demo":"Sample captions (server not connected)",
+ "e.waiting":"Captions will appear here once the message begins",
+ "spk.pastor":"Pastor",
+ "badge.pending":"original - awaiting translation"
+},
+tl:{
+ "app.name":"Live na Interpretasyon",
+ "join.badge":"LIVE",
+ "join.t1":"Ang mensahe ngayon,",
+ "join.t2":"sa wika mo",
+ "join.sub":"Pumili ng wika at pindutin ang simula. Walang i-install, walang login.",
+ "join.pick":"Pumili ng wika",
+ "join.also":"Ipakita rin (opsyonal)",
+ "join.none":"Wala",
+ "join.noneD":"isang wika lang",
+ "join.start":"Simulan ang subtitle",
+ "join.foot":"Kumokonekta sa",
+ "notice.t":"Paalala sa AI na interpretasyon",
+ "notice.b":"Ang subtitle na ito ay gawa ng AI, hindi ng taong interpreter. Maaaring mali ang mga pangalan, talata sa Bibliya, at numero. Pakisuri ang mahalagang bahagi sa orihinal.",
+ "live.room":"Live na interpretasyon",
+ "live.new":"Bago",
+ "set.title":"Setting ng screen",
+ "set.dual":"Orihinal",
+ "set.dualL":"Ipakita ang orihinal",
+ "set.dualD":"Ipapakita ang Korean sa ilalim ng bawat salin",
+ "set.size":"Laki ng teksto",
+ "set.lh":"Agwat ng linya",
+ "set.auto":"Auto scroll",
+ "set.autoD":"Susunod sa bagong subtitle pababa",
+ "set.dark":"Night mode",
+ "set.darkD":"Mas madali sa mata sa madilim na simbahan",
+ "set.wake":"Huwag patayin ang screen",
+ "set.wakeD":"Hindi matutulog ang screen habang may serbisyo",
+ "set.lang2":"Pangalawang wika",
+ "set.lang2D":"Magpapakita ng pangalawang wika sa ilalim",
+ "set.lines":"Linya sa malaking screen",
+ "st.paused":"Huminto muna ang nagsasalita",
+ "st.ended":"Tapos na ang serbisyo",
+ "st.endedD":"Salamat sa pagsama.",
+ "st.bad":"Mali o expired na ang link na ito",
+ "set.lang":"Wika ng subtitle",
+ "set.big":"Buksan ang malaking screen",
+ "set.bigshort":"Screen",
+ "set.done":"Tapos",
+ "big.hint":"Pindutin kahit saan para bumalik",
+ "h.connecting":"Kumokonekta",
+ "h.waiting":"Naghihintay ng subtitle",
+ "h.pre":"Huling subtitle ",
+ "h.post":"s ang nakalipas",
+ "h.stale":" - baka tumigil na",
+ "h.dead":"Nadiskonekta - kumokonekta muli",
+ "h.demo":"Halimbawang subtitle (walang server)",
+ "e.waiting":"Lalabas dito ang subtitle kapag nagsimula na",
+ "spk.pastor":"Pastor",
+ "badge.pending":"orihinal - hinihintay ang salin"
+}
+};
+I18N.ceb = I18N.tl; I18N.zh = I18N.en; I18N.ja = I18N.en;
+
+/* demo material - real sermon cadence, so the layout is judged on realistic
+   line lengths rather than lorem ipsum. */
+var DEMO = [
+ {ko:"\uc624\ub298 \ubcf8\ubb38\uc740 \uc694\ud55c\ubcf5\uc74c 15\uc7a5 5\uc808\uc785\ub2c8\ub2e4.",
+  tl:"Ang teksto natin ngayon ay Juan 15:5.",
+  en:"Our text today is John 15:5."},
+ {ko:"\ub098\ub294 \ud3ec\ub3c4\ub098\ubb34\uc694 \ub108\ud76c\ub294 \uac00\uc9c0\ub77c. \uadf8\uac00 \ub0b4 \uc548\uc5d0, \ub0b4\uac00 \uadf8 \uc548\uc5d0 \uac70\ud558\uba74 \uc0ac\ub78c\uc774 \uc5f4\ub9e4\ub97c \ub9ce\uc774 \ub9fa\ub098\ub2c8.",
+  tl:"Ako ang puno ng ubas, kayo ang mga sanga. Ang nananatili sa akin at ako sa kanya ay namumunga nang sagana.",
+  en:"I am the vine, you are the branches. Whoever abides in me and I in him bears much fruit."},
+ {ko:"\uac00\uc9c0\uac00 \ub098\ubb34\uc5d0\uc11c \ub5a8\uc5b4\uc9c0\uba74 \uadf8 \uc21c\uac04 \uc8fd\ub294 \uac83\uc774 \uc544\ub2d9\ub2c8\ub2e4. \ud55c\ub3d9\uc548\uc740 \uc78e\uc774 \ud478\ub974\uac8c \ub0a8\uc544 \uc788\uc2b5\ub2c8\ub2e4.",
+  tl:"Kapag nahiwalay ang sanga sa puno, hindi ito agad namamatay. Mananatiling luntian ang dahon sa loob ng ilang araw.",
+  en:"When a branch is cut from the vine it does not die that instant. The leaves stay green for a while."},
+ {ko:"\uadf8\ub7ec\ub098 \uc5f4\ub9e4\ub294 \ub354 \uc774\uc0c1 \ub9fa\ud788\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4. \uc774\uac83\uc774 \uc6b0\ub9ac\uac00 \uc2a4\uc2a4\ub85c\ub97c \uc18d\uc774\ub294 \ubc29\uc2dd\uc785\ub2c8\ub2e4.",
+  tl:"Ngunit hindi na ito muling mamumunga. Ganito tayo nagpapaloko sa sarili natin.",
+  en:"But it will never bear fruit again. This is how we deceive ourselves."}
+];
+
+/* ==========================================================================
+   state
+   ========================================================================== */
+var Q = new URLSearchParams(location.search);
+var LS = {
+  get:function(k,d){ try{ var v=localStorage.getItem("cap."+k); return v===null?d:JSON.parse(v);}catch(e){return d;} },
+  set:function(k,v){ try{ localStorage.setItem("cap."+k, JSON.stringify(v)); }catch(e){} }
+};
+
+var S = {
+  lang   : Q.get("lang")  || LS.get("lang","tl"),
+  lang2  : Q.get("lang2") !== null ? Q.get("lang2") : LS.get("lang2","en"),
+  ui     : LS.get("ui",""),
+  fs     : LS.get("fs",5),          /* 1..10 */
+  lh     : LS.get("lh",1.55),
+  lines  : LS.get("lines",3),       /* big screen, 2..4 */
+  dual   : LS.get("dual",true),     /* korean original */
+  auto   : LS.get("auto",true),
+  dark   : LS.get("dark",false),
+  wake   : LS.get("wake",true),
+  turns  : [],
+  lastAt : 0,
+  conn   : "idle",
+  sess   : "live",                  /* live | paused | ended | bad */
+  demo   : false,
+  wl     : null
+};
+/* sconchat exposes 0.875~2 in 10 steps (ORD-591 2-4). matching a range that a
+   real congregation has already used beats inventing one. */
+var FS_STEPS=[0.875,1.000,1.125,1.250,1.375,1.500,1.625,1.750,1.875,2.000];
+if(S.lang2===S.lang) S.lang2="";
+if(!S.ui){ S.ui = (S.lang==="ko") ? "ko" : (S.lang==="en" ? "en" : "entl"); }
+
+/* "entl" is not a language, it is the spec's requirement that guest chrome
+   carries English AND Tagalog together. short labels get joined; long prose
+   would become unreadable joined, so it falls back to English. */
+function T(k){
+  if(S.ui==="entl"){
+    var a=I18N.en[k], b=I18N.tl[k];
+    if(a===undefined) return I18N.ko[k]||k;
+    if(b===undefined || b===a) return a;
+    if(a.length>26 || b.length>26) return a;
+    return a+" \u00b7 "+b;
+  }
+  var d=I18N[S.ui]||I18N.ko;
+  return d[k]!==undefined?d[k]:(I18N.ko[k]||k);
+}
+function T2(k){ return (S.ui==="entl") ? (I18N.tl[k]||"") : ""; }
+function $(id){ return document.getElementById(id); }
+function esc(s){ return String(s==null?"":s); }
+
+/* ==========================================================================
+   i18n application
+   ========================================================================== */
+function applyI18n(){
+  var n=document.querySelectorAll("[data-t]");
+  for(var i=0;i<n.length;i++){ n[i].textContent = T(n[i].getAttribute("data-t")); }
+  document.title = T("app.name");
+  document.documentElement.lang = (S.ui==="entl")?"en":S.ui;
+  var nb=document.querySelector('.notice p'), tl2=T2("notice.b");
+  if(nb && tl2){ nb.textContent = I18N.en["notice.b"] + "\n" + tl2; nb.style.whiteSpace="pre-line"; }
+  $("uilangTxt").textContent = (S.ui==="entl")?"EN\u00b7TL":S.ui.toUpperCase();
+  var L = pickLang(S.lang);
+  $("langPillTxt").textContent = L?L.nat:S.lang.toUpperCase();
+  $("bLang").textContent = L?L.nat:S.lang.toUpperCase();
+  $("bHint").textContent = T("big.hint");
+  var mark = (S.ui==="ko") ? I18N.ko["app.name"] : I18N.en["app.name"];
+  $("wmark").textContent = mark;
+  $("bWm").textContent = mark;
+  $("roomTitle").textContent = mark;
+  renderTurns();
+  paintHealth();
+}
+function pickLang(c){ for(var i=0;i<LANGS.length;i++) if(LANGS[i].c===c) return LANGS[i]; return null; }
+
+/* ==========================================================================
+   join screen
+   ========================================================================== */
+function buildGrid(){
+  var g=$("langGrid"); g.innerHTML="";
+  LANGS.forEach(function(L){
+    var b=document.createElement("button");
+    b.type="button"; b.className="lcard";
+    b.setAttribute("aria-pressed", L.c===S.lang ? "true":"false");
+    var c=document.createElement("span"); c.className="code"; c.textContent=L.c.toUpperCase();
+    var n=document.createElement("span"); n.className="nat"; n.textContent=L.nat;
+    var e=document.createElement("span"); e.className="eng"; e.textContent=L.eng;
+    var t=document.createElement("span"); t.className="tick";
+    t.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+    b.appendChild(c); b.appendChild(n); b.appendChild(e); b.appendChild(t);
+    b.addEventListener("click", function(){
+      S.lang=L.c; LS.set("lang",L.c);
+      var all=g.querySelectorAll(".lcard");
+      for(var i=0;i<all.length;i++) all[i].setAttribute("aria-pressed","false");
+      b.setAttribute("aria-pressed","true");
+      $("startBtn").disabled=false;
+      $("langPillTxt").textContent=L.nat; $("bLang").textContent=L.nat;
+      if(S.lang2===S.lang){ S.lang2=""; LS.set("lang2",""); }
+      buildGrid2(); renderTurns();
+    });
+    g.appendChild(b);
+  });
+  $("startBtn").disabled = !S.lang;
+}
+
+/* second language picker. this is the part sconchat has no answer for:
+   ORD-591 3 recorded that its guest view is one-language-per-viewer, while the
+   owner's 2026-08-31 ask was tagalog + english + korean at the same time. */
+function buildGrid2(){
+  var g=$("lang2Grid"); if(!g) return;
+  g.innerHTML="";
+  var opts=[{c:"",nat:T("join.none"),eng:T("join.noneD")}];
+  for(var i=0;i<LANGS.length;i++) if(LANGS[i].c!==S.lang) opts.push(LANGS[i]);
+  opts.forEach(function(L){
+    var b=document.createElement("button");
+    b.type="button"; b.className="lcard";
+    b.setAttribute("aria-pressed", L.c===S.lang2 ? "true":"false");
+    var c=document.createElement("span"); c.className="code";
+    c.textContent = L.c ? L.c.toUpperCase() : "\u2014";
+    var n=document.createElement("span"); n.className="nat"; n.textContent=L.nat;
+    var e=document.createElement("span"); e.className="eng"; e.textContent=L.eng;
+    var t=document.createElement("span"); t.className="tick";
+    t.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+    b.appendChild(c); b.appendChild(n); b.appendChild(e); b.appendChild(t);
+    b.addEventListener("click",function(){
+      S.lang2=L.c; LS.set("lang2",L.c);
+      var all=g.querySelectorAll(".lcard");
+      for(var i=0;i<all.length;i++) all[i].setAttribute("aria-pressed","false");
+      b.setAttribute("aria-pressed","true");
+      renderTurns();
+    });
+    g.appendChild(b);
+  });
+}
+
+/* ==========================================================================
+   caption stream rendering
+   ========================================================================== */
+var AVC=["","s1","s2"];
+function initial(s){ s=String(s||"").trim(); return s? s.slice(0,1).toUpperCase() : "P"; }
+function hhmm(ts){
+  var d=new Date(ts||Date.now());
+  var h=d.getHours(), m=d.getMinutes(), ap=h<12?"AM":"PM";
+  h=h%12; if(h===0)h=12;
+  return h+":"+(m<10?"0":"")+m+" "+ap;
+}
+function dayKey(ts){
+  var d=new Date(ts||Date.now());
+  var W=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  var M=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  return W[d.getDay()]+" "+M[d.getMonth()]+" "+d.getDate()+" "+d.getFullYear();
+}
+/* returns {s:<string to show>, fb:<true if this is NOT the chosen language>}.
+   the relay fills languages in one at a time under the same seq, so a row can
+   exist with only the korean original for a second or two. showing the korean
+   with a small badge beats showing an empty line. */
+function textIn(t,code){
+  if(code==="ko") return t.ko || (t.tr&&t.tr.ko) || "";
+  return (t.tr && t.tr[code]) || "";
+}
+function textOf(t){
+  var v=textIn(t,S.lang);
+  if(v) return {s:v, fb:false};
+  if(t.text) return {s:t.text, fb:false};
+  if(t.ko) return {s:t.ko, fb:true};
+  if(t.tr){ for(var k in t.tr){ if(t.tr[k]) return {s:t.tr[k], fb:true}; } }
+  return {s:"", fb:false};
+}
+
+function renderTurns(){
+  var w=$("streamwrap"); if(!w) return;
+  w.innerHTML="";
+  if(S.sess==="ended" || S.sess==="bad"){
+    var c=document.createElement("div"); c.className="endcard";
+    c.innerHTML='<div class="ei"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"'+
+      ' stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">'+
+      (S.sess==="ended"?'<path d="M20 6 9 17l-5-5"/>':'<path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>')+
+      '</svg></div>';
+    var eb=document.createElement("b"); eb.textContent=T(S.sess==="ended"?"st.ended":"st.bad");
+    var ep=document.createElement("p"); ep.textContent=S.sess==="ended"?T("st.endedD"):"";
+    c.appendChild(eb); c.appendChild(ep);
+    if(!(S.sess==="ended" && S.turns.length)){ w.appendChild(c); return; }
+    w._endcard = c;
+  }
+  if(!S.turns.length){
+    var e=document.createElement("div"); e.className="empty";
+    e.innerHTML='<div class="ring"></div>';
+    var p=document.createElement("p"); p.textContent=T("e.waiting");
+    e.appendChild(p); w.appendChild(e); return;
+  }
+  var lastDay="";
+  S.turns.forEach(function(t,i){
+    var dk=dayKey(t.ts);
+    if(dk!==lastDay){
+      lastDay=dk;
+      var dd=document.createElement("div"); dd.className="daydiv";
+      var sp=document.createElement("span"); sp.textContent=dk;
+      dd.appendChild(sp); w.appendChild(dd);
+    }
+    var el=document.createElement("article");
+    el.className="turn"+(t.partial?" partial":"");
+    var h=document.createElement("div"); h.className="thead";
+    var av=document.createElement("span");
+    av.className="av "+AVC[(t.spkIdx||0)%3];
+    av.textContent=initial(t.speaker||T("spk.pastor"));
+    var wo=document.createElement("span"); wo.className="who";
+    wo.textContent=t.speaker||T("spk.pastor");
+    var tm=document.createElement("span"); tm.className="tm"; tm.textContent=hhmm(t.ts);
+    h.appendChild(av); h.appendChild(wo); h.appendChild(tm);
+    var got=textOf(t);
+    if(got.fb){
+      var bg=document.createElement("span"); bg.className="pend";
+      bg.textContent=T("badge.pending"); h.appendChild(bg);
+    }
+    var b=document.createElement("div"); b.className="tbody"; b.textContent=got.s;
+    var sec = (S.lang2 && S.lang2!==S.lang) ? textIn(t,S.lang2) : "";
+    if(sec){
+      el.classList.add("two");
+      var pair=document.createElement("div"); pair.className="tpair";
+      var s2=document.createElement("div"); s2.className="tsec";
+      var lc=document.createElement("span"); lc.className="lc";
+      lc.textContent=S.lang2.toUpperCase();
+      s2.appendChild(lc); s2.appendChild(document.createTextNode(sec));
+      pair.appendChild(b); pair.appendChild(s2);
+      el.appendChild(h); el.appendChild(pair);
+    } else {
+      el.appendChild(h); el.appendChild(b);
+    }
+    if(S.dual && t.ko && !got.fb && S.lang!=="ko" && S.lang2!=="ko"){
+      var o=document.createElement("div"); o.className="torig"; o.textContent=t.ko;
+      el.appendChild(o);
+    }
+    w.appendChild(el);
+  });
+  if(w._endcard){ w.appendChild(w._endcard); w._endcard=null; }
+  if(S.auto) scrollBottom();
+  renderBig();
+}
+function scrollBottom(){
+  var s=$("stream"); if(s) s.scrollTop=s.scrollHeight;
+  $("jumpBtn").classList.add("hide");
+}
+function renderBig(){
+  var bb=$("bigbody"); if(!bb || $("big").classList.contains("hide")) return;
+  bb.innerHTML="";
+  var last=S.turns.slice(-Math.max(2,Math.min(4,S.lines)));
+  last.forEach(function(t,i){
+    var got=textOf(t);
+    if(!got.s) return;
+    var isLast = (i===last.length-1);
+    var d=document.createElement("div");
+    d.className="bl"+(isLast?"":" old");
+    d.textContent=got.s;
+    bb.appendChild(d);
+    if(!isLast) return;
+    var sec = (S.lang2 && S.lang2!==S.lang) ? textIn(t,S.lang2) : "";
+    if(sec){
+      var s2=document.createElement("div"); s2.className="bo"; s2.textContent=sec;
+      bb.appendChild(s2);
+    }
+    if(S.dual && t.ko && !got.fb && S.lang!=="ko" && S.lang2!=="ko"){
+      var o=document.createElement("div"); o.className="bo"; o.textContent=t.ko;
+      bb.appendChild(o);
+    }
+  });
+}
+
+/* seq identity matters. the 8779 relay re-broadcasts the SAME seq once per
+   language as each translation lands, so an append-only client would print the
+   korean line, then the tagalog line, then the english line as three separate
+   turns. rows are therefore merged by id. */
+var _localSeq=0;
+function pushTurn(t){
+  t.ts = t.ts || Date.now();
+  if(!t.id) t.id = "L"+(++_localSeq);
+  var tail = S.turns[S.turns.length-1];
+
+  if(t.partial){
+    if(tail && tail.partial) S.turns[S.turns.length-1]=t; else S.turns.push(t);
+  } else {
+    var idx=-1, floor=Math.max(0,S.turns.length-80);
+    for(var i=S.turns.length-1;i>=floor;i--){
+      if(!S.turns[i].partial && S.turns[i].id===t.id){ idx=i; break; }
+    }
+    if(idx>=0){
+      var prev=S.turns[idx];
+      t.ts = prev.ts;                          /* keep first-arrival time */
+      t.ko = t.ko || prev.ko;
+      t.tr = Object.assign({}, prev.tr||{}, t.tr||{});
+      t.text = t.text || prev.text;
+      S.turns[idx]=t;
+    } else if(tail && tail.partial){
+      S.turns[S.turns.length-1]=t;             /* final replaces the partial */
+    } else {
+      S.turns.push(t);
+    }
+  }
+  if(S.turns.length>400) S.turns=S.turns.slice(-400);
+  S.lastAt=Date.now();
+  renderTurns();
+  paintHealth();
+}
+
+/* accepts BOTH shapes:
+   a) the live 8779 relay   {"kind":"caption","seq":"in3","ko":"...","tl":"..."}
+                            {"kind":"partial","text":"..."}
+   b) a generic bridge      {"type":"caption","tr":{...},"ko":"...","ts":...}
+   plus a bare string, which older bridges emit. */
+function normalize(m){
+  if(typeof m === "string") m = {text:m};
+  var kind = m.kind || m.type || "caption";
+  if(kind==="pong" || kind==="ack" || kind==="hello") return null;
+  if(kind==="status" || kind==="session"){
+    var st = m.state || m.status || "";
+    if(st==="paused"||st==="pause"){ S.sess="paused"; }
+    else if(st==="ended"||st==="end"||st==="closed"){ S.sess="ended"; }
+    else if(st==="live"||st==="resumed"||st==="resume"){ S.sess="live"; }
+    renderTurns(); paintHealth();
+    return null;
+  }
+  if(S.sess==="paused" || S.sess==="ended") S.sess="live";   /* captions imply live */
+
+  if(kind==="partial"){
+    var pt = String(m.text||"").trim();
+    if(!pt) return null;
+    return {id:"__p__", partial:true, ko:pt, text:pt, tr:null, ts:Date.now(),
+            speaker:m.speaker||T("spk.pastor"), spkIdx:m.spkIdx||0};
+  }
+
+  var tr={}, i, c, k;
+  for(i=0;i<LANGS.length;i++){ c=LANGS[i].c; if(m[c]) tr[c]=m[c]; }
+  if(m.tr)           for(k in m.tr)           if(m.tr[k]) tr[k]=m.tr[k];
+  if(m.translations) for(k in m.translations) if(m.translations[k]) tr[k]=m.translations[k];
+
+  var ko  = m.ko || m.original || m.source || tr.ko || "";
+  var txt = m.text || m.translation || "";
+  if(!ko && !txt){ var any=false; for(k in tr){ any=true; break; } if(!any) return null; }
+
+  return {
+    id      : (m.seq!==undefined && m.seq!==null) ? "S"+m.seq : null,
+    partial : false,
+    speaker : m.speaker || m.name || T("spk.pastor"),
+    spkIdx  : m.spkIdx || 0,
+    ts      : m.ts ? (String(m.ts).length>11 ? Number(m.ts) : Number(m.ts)*1000) : Date.now(),
+    ko      : ko,
+    text    : txt,
+    tr      : tr
+  };
+}
+
+/* ==========================================================================
+   health strip. this is the whole reason the guest can trust the screen:
+   the bridge has died silently before, and a frozen caption looks identical
+   to a pause in the sermon. the counter makes the difference visible.
+   ========================================================================== */
+function paintHealth(){
+  var h=$("health"), d=$("hDot"), x=$("hTxt"), c=$("hClock");
+  if(!h) return;
+  var now=new Date();
+  c.textContent = hhmm(now.getTime());
+  h.classList.remove("warn","bad");
+  if(S.sess==="ended"){ x.textContent=T("st.ended"); return; }
+  if(S.sess==="bad"){ x.textContent=T("st.bad"); h.classList.add("bad"); return; }
+  if(S.sess==="paused"){ x.textContent=T("st.paused"); h.classList.add("warn"); return; }
+  if(S.demo){ x.textContent=T("h.demo"); h.classList.add("warn"); return; }
+  if(S.conn==="connecting"){ x.textContent=T("h.connecting"); h.classList.add("warn"); return; }
+  if(S.conn==="closed"){ x.textContent=T("h.dead"); h.classList.add("bad"); return; }
+  if(!S.lastAt){ x.textContent=T("h.waiting"); return; }
+  var s=Math.round((Date.now()-S.lastAt)/1000);
+  var msg=T("h.pre")+s+T("h.post");
+  if(s>=45){ msg+=T("h.stale"); h.classList.add("bad"); }
+  else if(s>=20){ msg+=T("h.stale"); h.classList.add("warn"); }
+  x.textContent=msg;
+  var bd=$("bDot"); if(bd) bd.className="bdot"+(s>=20?" stale":"");
+}
+setInterval(paintHealth,1000);
+
+/* ==========================================================================
+   transport
+   ========================================================================== */
+var ws=null, tries=0, candIdx=0, cands=[];
+function buildCands(){
+  var q=Q.get("ws");
+  if(q){ cands=[q]; return; }
+  /* 앱(고정 원점)은 자기 주소에 /ws 가 없다 - app.js 가 url.json 에서 읽은 현재 터널만 쓴다 */
+  cands = window.__tunnelWs ? [window.__tunnelWs] : [];
+}
+/* ★2026-09-19 수정. 예전엔 후보 주소를 두 바퀴 돌아 다 실패하면 startDemo() 로 떨어져
+   다시는 서버에 붙지 않았다. 폰 와이파이가 몇 초 끊기거나 서버를 재기동하면(09-19 실측:
+   중계기 재기동 뒤 clients=0 고정) 교인 화면에 샘플 자막이 흐르고 진짜 자막은 안 돌아왔다.
+   데모는 ?demo=1 로 부를 때만 뜬다. 그 밖에는 1-2-4-8-10초 간격으로 끝까지 다시 붙는다. */
+var _rt=null;
+function later(ms){ if(_rt) clearTimeout(_rt); _rt=setTimeout(function(){ _rt=null; connect(); }, ms); }
+function connect(){
+  if(Q.get("demo")==="1"){ startDemo(); return; }
+  if(ws && (ws.readyState===0 || ws.readyState===1)) return;
+  if(candIdx>=cands.length){
+    candIdx=0; tries++;
+    if(window.__refreshTunnel){ window.__refreshTunnel().then(function(){ buildCands(); }); }
+    S.conn="closed"; paintHealth();
+    later(Math.min(10000, 1000*Math.pow(2, Math.min(tries-1, 4))));
+    return;
+  }
+  var url=cands[candIdx];
+  $("endpoint").textContent=url;
+  $("roomSub").textContent=url.replace(/^wss?:\/\//,"");
+  S.conn="connecting"; paintHealth();
+  var sock;
+  try{ sock=new WebSocket(url); }catch(e){ candIdx++; later(300); return; }
+  ws=sock;
+  var settled=false;
+  var to=setTimeout(function(){ if(!settled){ try{sock.close();}catch(e){} } },3500);
+  sock.onopen=function(){
+    settled=true; clearTimeout(to); S.conn="open"; S.demo=false; tries=0;
+    try{ sock.send(JSON.stringify({type:"hello",lang:S.lang,lang2:S.lang2})); }catch(e){}
+    paintHealth();
+  };
+  sock.onmessage=function(ev){
+    var m;
+    try{ m=JSON.parse(ev.data); }catch(e){ m={text:String(ev.data)}; }
+    var t=normalize(m);
+    if(t) pushTurn(t);
+  };
+  sock.onclose=function(){
+    clearTimeout(to);
+    if(S.conn!=="open"){ candIdx++; later(300); return; }
+    S.conn="closed"; paintHealth();
+    candIdx=0; later(2000);
+  };
+  sock.onerror=function(){ try{sock.close();}catch(e){} };
+}
+var demoTimer=null;
+function startDemo(){
+  S.demo=true; S.conn="open"; paintHealth();
+  $("roomSub").textContent="demo";
+  var i=0;
+  if(demoTimer) clearInterval(demoTimer);
+  function emit(){
+    var d=DEMO[i%DEMO.length]; var seq="d"+i; i++;
+    /* mirror the relay exactly: korean original lands first under a seq, the
+       translations arrive a beat later under the SAME seq. if the merge logic
+       is wrong this shows up immediately as duplicated lines. */
+    pushTurn(normalize({kind:"caption",seq:seq,ko:d.ko}));
+    setTimeout(function(){
+      pushTurn(normalize({kind:"caption",seq:seq,ko:d.ko,tl:d.tl,ceb:d.tl,en:d.en,zh:d.en,ja:d.en}));
+    },900);
+  }
+  emit();
+  demoTimer=setInterval(emit,6500);
+}
+
+/* ==========================================================================
+   settings sheet
+   ========================================================================== */
+function openSheet(){
+  var scrim=document.createElement("div"); scrim.className="scrim";
+  var sh=document.createElement("div"); sh.className="sheet";
+  sh.innerHTML='<div class="handle"></div>';
+  var h2=document.createElement("h2"); h2.textContent=T("set.title"); sh.appendChild(h2);
+
+  sh.appendChild(rowSeg(T("set.lang"),"",LANGS.map(function(L){return {v:L.c,t:L.nat};}),S.lang,function(v){
+    S.lang=v; LS.set("lang",v);
+    var L=pickLang(v);
+    $("langPillTxt").textContent=L?L.nat:v; $("bLang").textContent=L?L.nat:v;
+    if(S.lang2===S.lang){ S.lang2=""; LS.set("lang2",""); }
+    buildGrid(); buildGrid2(); renderTurns();
+  }));
+  sh.appendChild(rowSeg(T("set.lang2"),T("set.lang2D"),
+    [{v:"",t:T("join.none")}].concat(LANGS.map(function(L){return {v:L.c,t:L.nat};})),
+    S.lang2, function(v){
+      if(v===S.lang) v="";
+      S.lang2=v; LS.set("lang2",v); buildGrid2(); renderTurns();
+    }));
+  sh.appendChild(rowRange(T("set.size"),"",1,10,1,S.fs,function(v){
+    S.fs=v; LS.set("fs",v); applyFs();
+  }, function(v){ return v+" / 10"; }));
+  sh.appendChild(rowRange(T("set.lh"),"",1.0,2.0,0.05,S.lh,function(v){
+    S.lh=v; LS.set("lh",v); document.documentElement.style.setProperty("--lh",v);
+  }, function(v){ return v.toFixed(2); }));
+  sh.appendChild(rowRange(T("set.lines"),"",2,4,1,S.lines,function(v){
+    S.lines=v; LS.set("lines",v); renderBig();
+  }, function(v){ return v+""; }));
+  sh.appendChild(rowSw(T("set.dualL"),T("set.dualD"),S.dual,function(v){
+    S.dual=v; LS.set("dual",v);
+    $("dualTog").setAttribute("aria-pressed",v?"true":"false"); renderTurns();
+  }));
+  sh.appendChild(rowSw(T("set.auto"),T("set.autoD"),S.auto,function(v){
+    S.auto=v; LS.set("auto",v); if(v) scrollBottom();
+  }));
+  sh.appendChild(rowSw(T("set.dark"),T("set.darkD"),S.dark,function(v){
+    S.dark=v; LS.set("dark",v); applyTheme();
+  }));
+  sh.appendChild(rowSw(T("set.wake"),T("set.wakeD"),S.wake,function(v){
+    S.wake=v; LS.set("wake",v); applyWake();
+  }));
+
+  var cta=document.createElement("div"); cta.className="sheetcta";
+  var b=document.createElement("button"); b.type="button"; b.className="btn pri";
+  b.textContent=T("set.done"); cta.appendChild(b); sh.appendChild(cta);
+
+  function close(){ try{scrim.remove();sh.remove();}catch(e){} }
+  b.addEventListener("click",close);
+  scrim.addEventListener("click",close);
+  document.body.appendChild(scrim); document.body.appendChild(sh);
+}
+function rowShell(label,desc){
+  var r=document.createElement("div"); r.className="row";
+  var l=document.createElement("div");
+  var a=document.createElement("div"); a.className="rl"; a.textContent=label; l.appendChild(a);
+  if(desc){ var d=document.createElement("div"); d.className="rd"; d.textContent=desc; l.appendChild(d); }
+  r.appendChild(l); return r;
+}
+function rowSw(label,desc,val,cb){
+  var r=rowShell(label,desc);
+  var s=document.createElement("button"); s.type="button"; s.className="sw";
+  s.setAttribute("aria-pressed",val?"true":"false");
+  s.addEventListener("click",function(){
+    var nv=s.getAttribute("aria-pressed")!=="true";
+    s.setAttribute("aria-pressed",nv?"true":"false"); cb(nv);
+  });
+  r.appendChild(s); return r;
+}
+function rowRange(label,desc,min,max,step,val,cb,fmt){
+  var r=rowShell(label,desc);
+  var box=document.createElement("div"); box.className="rng";
+  var i=document.createElement("input"); i.type="range"; i.className="slider";
+  i.min=min; i.max=max; i.step=step; i.value=val;
+  var v=document.createElement("span"); v.className="rv";
+  v.textContent = fmt?fmt(val):val;
+  i.addEventListener("input",function(){
+    var n=parseFloat(i.value); v.textContent = fmt?fmt(n):n; cb(n);
+  });
+  box.appendChild(i); box.appendChild(v); r.appendChild(box); return r;
+}
+function rowSeg(label,desc,opts,val,cb){
+  var r=rowShell(label,desc);
+  var g=document.createElement("div"); g.className="seg wrap2";
+  opts.forEach(function(o){
+    var b=document.createElement("button"); b.type="button"; b.textContent=o.t;
+    b.setAttribute("aria-pressed",o.v===val?"true":"false");
+    b.addEventListener("click",function(){
+      var all=g.querySelectorAll("button");
+      for(var i=0;i<all.length;i++) all[i].setAttribute("aria-pressed","false");
+      b.setAttribute("aria-pressed","true"); cb(o.v);
+    });
+    g.appendChild(b);
+  });
+  r.appendChild(g); return r;
+}
+
+/* ==========================================================================
+   apply helpers
+   ========================================================================== */
+function applyFs(){
+  var i=Math.max(1,Math.min(10,S.fs));
+  document.documentElement.style.setProperty("--fs",FS_STEPS[i-1]);
+  $("fsVal").textContent=i;
+}
+function applyTheme(){
+  document.documentElement.setAttribute("data-theme", S.dark?"dark":"light");
+  var m=document.querySelector('meta[name="theme-color"]');
+  if(m) m.setAttribute("content", S.dark?"#10162A":"#ffffff");
+}
+function applyWake(){
+  if(!("wakeLock" in navigator)) return;
+  if(S.wake){
+    navigator.wakeLock.request("screen").then(function(w){ S.wl=w; }).catch(function(){});
+  } else if(S.wl){ try{S.wl.release();}catch(e){} S.wl=null; }
+}
+document.addEventListener("visibilitychange",function(){
+  if(document.visibilityState==="visible" && S.wake) applyWake();
+  /* 화면을 껐다 켜면 폰이 소켓을 끊어 두는 일이 잦다 — 돌아오는 즉시 다시 붙는다. */
+  if(document.visibilityState==="visible" && S.conn!=="open" && !S.demo && cands.length){ candIdx=0; later(0); }
+});
+window.addEventListener("online",function(){
+  if(S.conn!=="open" && !S.demo && cands.length){ candIdx=0; later(0); }
+});
+
+/* ==========================================================================
+   screen routing
+   ========================================================================== */
+function goLive(){
+  $("join").classList.add("hide"); $("live").classList.remove("hide");
+  applyWake(); renderTurns();
+  (window.__refreshTunnel ? window.__refreshTunnel() : Promise.resolve()).then(function(){ buildCands(); connect(); });
+}
+function goJoin(){
+  $("live").classList.add("hide"); $("join").classList.remove("hide");
+}
+function goBig(){
+  $("big").classList.remove("hide"); renderBig();
+  var el=document.documentElement;
+  if(el.requestFullscreen) el.requestFullscreen().catch(function(){});
+}
+function exitBig(){
+  $("big").classList.add("hide");
+  if(document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(function(){});
+}
+
+/* ==========================================================================
+   wiring
+   ========================================================================== */
+$("startBtn").addEventListener("click",goLive);
+$("backBtn").addEventListener("click",goJoin);
+$("gearBtn").addEventListener("click",openSheet);
+$("langPill").addEventListener("click",openSheet);
+$("bigBtn").addEventListener("click",goBig);
+$("bigClose").addEventListener("click",exitBig);
+$("big").addEventListener("click",function(e){ if(e.target.id==="big"||e.target.id==="bigbody") exitBig(); });
+$("fsUp").addEventListener("click",function(){ S.fs=Math.min(10,S.fs+1); LS.set("fs",S.fs); applyFs(); });
+$("fsDown").addEventListener("click",function(){ S.fs=Math.max(1,S.fs-1); LS.set("fs",S.fs); applyFs(); });
+$("dualTog").addEventListener("click",function(){
+  S.dual=!S.dual; LS.set("dual",S.dual);
+  $("dualTog").setAttribute("aria-pressed",S.dual?"true":"false"); renderTurns();
+});
+$("jumpBtn").addEventListener("click",scrollBottom);
+$("stream").addEventListener("scroll",function(){
+  var s=$("stream");
+  var near = s.scrollHeight - s.scrollTop - s.clientHeight < 90;
+  $("jumpBtn").classList.toggle("hide", near);
+});
+$("uilangBtn").addEventListener("click",function(){
+  var order=["entl","ko","en","tl"];
+  S.ui = order[(order.indexOf(S.ui)+1)%order.length];
+  LS.set("ui",S.ui); applyI18n();
+});
+document.addEventListener("keydown",function(e){
+  var inBig = !$("big").classList.contains("hide");
+  if(e.key==="Escape" && inBig){ exitBig(); return; }
+  if(e.target && /INPUT|TEXTAREA/.test(e.target.tagName)) return;
+  if(e.key==="+"||e.key==="="){ S.fs=Math.min(10,S.fs+1); LS.set("fs",S.fs); applyFs(); }
+  else if(e.key==="-"||e.key==="_"){ S.fs=Math.max(1,S.fs-1); LS.set("fs",S.fs); applyFs(); }
+  else if(e.key==="f"||e.key==="F"||e.key==="F11"){
+    if(e.key==="F11") e.preventDefault();
+    if(!$("live").classList.contains("hide")) goBig();
+  }
+  else if(e.key==="o"||e.key==="O"){ $("dualTog").click(); }
+  else if(e.altKey){
+    var map={k:"ko",e:"en",j:"ja",z:"zh",t:"tl",c:"ceb"};
+    var code=map[String(e.key).toLowerCase()];
+    if(code){
+      e.preventDefault();
+      S.lang=code; LS.set("lang",code);
+      if(S.lang2===S.lang){ S.lang2=""; LS.set("lang2",""); }
+      var L=pickLang(code);
+      $("langPillTxt").textContent=L?L.nat:code; $("bLang").textContent=L?L.nat:code;
+      buildGrid(); buildGrid2(); renderTurns();
+    }
+  }
+});
+
+/* boot */
+applyTheme(); applyFs();
+document.documentElement.style.setProperty("--lh",S.lh);
+$("dualTog").setAttribute("aria-pressed",S.dual?"true":"false");
+buildGrid(); buildGrid2(); applyI18n(); buildCands();
+$("endpoint").textContent = cands[0]||"-";
+if(Q.get("auto")==="1" || Q.get("demo")==="1") goLive();
+})();
+</script>
+
+</body>
+</html>
